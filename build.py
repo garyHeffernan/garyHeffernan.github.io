@@ -132,6 +132,9 @@ def slugify(stem: str) -> str:
     """Build a URL slug from a filename stem, which Gary controls by renaming."""
     s = stem.lower()
     s = s.replace("&", " and ")
+    # Drop apostrophes rather than break on them: "Paramount's" should slug
+    # to paramounts, not paramount-s.
+    s = re.sub(r"['’‘]", "", s)
     s = re.sub(r"[^a-z0-9]+", "-", s)
     s = re.sub(r"-+", "-", s).strip("-")
     if len(s) > 60:  # trim on a word boundary
