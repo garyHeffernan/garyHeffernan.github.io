@@ -129,8 +129,13 @@ def pandoc(text: str, to: str = "html5") -> str:
     return result.stdout.strip()
 
 
-def slugify(stem: str) -> str:
-    """Build a URL slug from a filename stem, which Gary controls by renaming."""
+def slugify(stem: str, limit: int = 60) -> str:
+    """Build a URL slug from a filename stem, which Gary controls by renaming.
+
+    Pass limit=0 for the untrimmed slug. Trimming is what makes two titles
+    collide when they differ only after the cut — "… Discovery" and
+    "… Discovery Part 2" — so callers fall back to the full form.
+    """
     s = stem.lower()
     s = s.replace("&", " and ")
     # Drop apostrophes rather than break on them: "Paramount's" should slug
@@ -138,8 +143,8 @@ def slugify(stem: str) -> str:
     s = re.sub(r"['’‘]", "", s)
     s = re.sub(r"[^a-z0-9]+", "-", s)
     s = re.sub(r"-+", "-", s).strip("-")
-    if len(s) > 60:  # trim on a word boundary
-        s = s[:60].rsplit("-", 1)[0]
+    if limit and len(s) > limit:  # trim on a word boundary
+        s = s[:limit].rsplit("-", 1)[0]
     return s
 
 
@@ -765,6 +770,42 @@ def write(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
+def check_links() -> None:
+    """Report internal links that point nowhere.
+
+    Renaming a note changes its URL, which silently breaks every link the
+    other posts make to it. This catches that before it ships.
+    """
+    def url_of(page: Path) -> str:
+        rel = page.parent.relative_to(OUT).as_posix()
+        return "/" if rel == "." else f"/{rel}/"
+
+    pages = {url_of(p) for p in OUT.rglob("index.html")}
+    static = {"/feed.xml", "/style.css", "/404.html", "/robots.txt"}
+    broken = []
+    for page in sorted(OUT.rglob("*.html")):
+        markup = page.read_text(encoding="utf-8")
+        for href in re.findall(r'href="(/[^"]*)"', markup):
+            path, _, fragment = href.partition("#")
+            if path in static:
+                continue
+            if path.startswith(("/images/", "/fonts/", "/files/")):
+                if not (OUT / path.lstrip("/")).exists():
+                    broken.append((page.parent.name, href, "missing file"))
+                continue
+            if path not in pages:
+                broken.append((page.parent.name, href, "no such page"))
+            elif fragment:
+                target = (OUT / path.lstrip("/") / "index.html").read_text(encoding="utf-8")
+                if fragment not in set(re.findall(r'id="([^"]+)"', target)):
+                    broken.append((page.parent.name, href, "no such anchor"))
+
+    if broken:
+        print(f"  warn     {len(broken)} broken internal link(s):")
+        for source, href, why in broken[:12]:
+            print(f"           {source[:36]:<36} {href[:60]}  ({why})")
+
+
 def main() -> None:
     check_only = "--check" in sys.argv
 
@@ -777,6 +818,19 @@ def main() -> None:
         # An empty source folder is a valid state, not an error. The About
         # page and the feed still build, and the index says so plainly.
         print("  warn     no posts found — building an empty index")
+
+    # Two titles that differ only past the trim point produce the same slug.
+    # Give every member of a colliding group its untrimmed slug instead.
+    grouped: dict[str, list[Post]] = {}
+    for post in posts:
+        grouped.setdefault(post.slug, []).append(post)
+    for slug, group in grouped.items():
+        if len(group) < 2:
+            continue
+        for post in group:
+            post.slug = slugify(post.source.stem, limit=0)
+            slugs[post.source.stem] = post.slug
+        print(f"  note     {len(group)} posts collided on {slug!r}; using full slugs")
 
     seen: dict[str, str] = {}
     for post in posts:
@@ -821,6 +875,8 @@ def main() -> None:
         print(f"  assets   {len(ASSETS)} files, {weight:.0f} KB")
 
     save_slugs(slugs)
+
+    check_links()
 
     files = sum(1 for _ in OUT.rglob("*") if _.is_file())
     size = sum(f.stat().st_size for f in OUT.rglob("*") if f.is_file())
