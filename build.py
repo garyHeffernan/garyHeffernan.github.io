@@ -448,6 +448,46 @@ def urllib_unquote(text: str) -> str:
     return unquote(text)
 
 
+# ─── WIKILINKS ────────────────────────────────────────────────────────────
+#
+# Links between posts are written as Obsidian wikilinks, never as URLs.
+# Obsidian rewrites the note name when a file is renamed, and the slug is
+# resolved here at build time — so a rename can never orphan a link.
+#
+#   [[Liquidia Gold]]                        → /liquidia-gold/
+#   [[Liquidia Gold|Part 1 here]]            → /liquidia-gold/ , shown as "Part 1 here"
+#   [[A mispriced gamble#Future Path #2: …]] → /a-mispriced-gamble/#future-path-2-…
+
+# Not preceded by "!", which is an image embed and belongs to resolve_assets.
+RE_WIKILINK = re.compile(r"(?<!!)\[\[([^\]|#]+?)(#[^\]|]*)?(?:\|([^\]]*))?\]\]")
+
+LINK_MAP: dict[str, str] = {}
+
+
+def register_links(posts: list[Post]) -> None:
+    """Map note name to URL, case-insensitively, for wikilink resolution."""
+    LINK_MAP.clear()
+    for post in posts:
+        LINK_MAP[post.source.stem.lower()] = post.url
+    LINK_MAP[ABOUT_SOURCE.stem.lower()] = "/about/"
+
+
+def resolve_wikilinks(markdown: str, note: Path) -> str:
+    def replace(match: re.Match) -> str:
+        target, anchor, alias = match.group(1), match.group(2) or "", match.group(3)
+        url = LINK_MAP.get(target.strip().lower())
+        if url is None:
+            print(f"  warn     wikilink to unknown note [[{target}]] in {note.name}")
+            return alias or target
+        if anchor:
+            # Everything after the first "#" is a heading. Slugify it the way
+            # pandoc does, so it matches the id on the target page.
+            url += "#" + slugify(anchor[1:], limit=0)
+        return f"[{alias or target}]({url})"
+
+    return RE_WIKILINK.sub(replace, markdown)
+
+
 # ─── PARSING ──────────────────────────────────────────────────────────────
 
 RE_TITLE = re.compile(r"^#\s+(?P<title>.+?)\s*$")
@@ -535,8 +575,10 @@ def parse_post(path: Path, slugs: dict) -> Post | None:
 
 
 def render_post(post: Post) -> None:
-    post.lede_html = tidy(pandoc(resolve_assets(post.lede_md, post.source)))
-    post.body_html = tidy(pandoc(resolve_assets(post.body_md, post.source)))
+    post.lede_html = tidy(pandoc(
+        resolve_wikilinks(resolve_assets(post.lede_md, post.source), post.source)))
+    post.body_html = tidy(pandoc(
+        resolve_wikilinks(resolve_assets(post.body_md, post.source), post.source)))
     source = post.lede_md or post.body_md
     plain = " ".join(pandoc(source, to="plain").split())
     post.excerpt = plain[:197].rsplit(" ", 1)[0] + "…" if len(plain) > 200 else plain
@@ -672,7 +714,8 @@ def render_about() -> str:
         for line in raw.split("\n")
         if not RE_TITLE.match(line.strip()) and not RE_TAGLINE.match(line.strip())
     ]
-    prose = tidy(pandoc(resolve_assets("\n".join(lines).strip(), ABOUT_SOURCE)))
+    prose = tidy(pandoc(resolve_wikilinks(
+        resolve_assets("\n".join(lines).strip(), ABOUT_SOURCE), ABOUT_SOURCE)))
     body = f"""<article>
 <h1>About</h1>
 <div class="prose">
@@ -838,6 +881,7 @@ def main() -> None:
             die(f"slug collision: {post.slug!r} from {post.source.name} and {seen[post.slug]}")
         seen[post.slug] = post.source.name
 
+    register_links(posts)
     for post in posts:
         render_post(post)
 
