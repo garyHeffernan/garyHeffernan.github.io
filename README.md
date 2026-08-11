@@ -65,7 +65,29 @@ Moving that file stops the build with a message naming the path it expected.
 
 The URL comes from the **filename**, not the title. `A Note on Coal.md` becomes `/a-note-on-coal/`.
 
-`slugs.json` freezes that mapping on first publish. Editing a title never breaks a live link. Renaming the file does, so rename before publishing, not after.
+Rename files whenever you like. The URL follows the new name, and the old address stops working — which is fine, because nothing else depends on it.
+
+Two titles that differ only past the 60-character cut would collide. The build detects that and gives both their untrimmed slug instead.
+
+## Linking between your own posts
+
+**Always use a wikilink. Never type a URL.**
+
+```markdown
+[[Liquidia Gold]]                        the note's own name as the text
+[[Liquidia Gold|Part 1 here]]            your own words as the text
+[[Connections You Can Count On#AI Summary|jump to the summary]]   a heading
+```
+
+The build turns each one into the target's current URL. Obsidian rewrites the note name inside the wikilink whenever you rename a file, so the link survives by construction. A typed URL does not.
+
+An unknown note does not break the build. It warns and renders as plain text:
+
+```
+warn     wikilink to unknown note [[Liqiudia Gold]] in Prior art.md
+```
+
+Every build also validates every internal link and anchor, and reports anything pointing nowhere.
 
 ## Publishing more folders
 
