@@ -19,6 +19,7 @@ import json
 import re
 import shutil
 import subprocess
+import tempfile
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -181,8 +182,16 @@ def esc(text: str) -> str:
 
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".avif", ".heic"}
 
+# Converted for the web only. The vault keeps its originals, so nothing in
+# Obsidian changes and the conversion stays reversible.
+WEBP = shutil.which("cwebp")
+WEBP_QUALITY = "82"
+WEBP_FROM = {".png", ".jpg", ".jpeg"}   # not .gif — that would drop animation
+
 # Filled during rendering, written to disk at the end of the build.
 ASSETS: dict[str, bytes] = {}
+# Intrinsic pixel size per asset, measured before any conversion.
+ASSET_SIZES: dict[str, tuple[int, int]] = {}
 
 RE_EMBED = re.compile(r"!\[\[([^\]|]+?)(?:\|([^\]]*))?\]\]")
 # Obsidian writes unencoded spaces in paths, so the target may contain them.
@@ -295,6 +304,30 @@ def fetch_remote(url: str) -> Path | None:
     return out
 
 
+def to_webp(data: bytes, digest: str) -> bytes | None:
+    """Convert to WebP, cached by content hash so rebuilds stay fast."""
+    if not WEBP:
+        return None
+    cache = ROOT / ".cache" / "webp"
+    cache.mkdir(parents=True, exist_ok=True)
+    hit = cache / f"{digest}.webp"
+    if hit.exists():
+        return hit.read_bytes()
+    with tempfile.NamedTemporaryFile(delete=False) as handle:
+        handle.write(data)
+        source = handle.name
+    try:
+        result = subprocess.run(
+            [WEBP, "-quiet", "-q", WEBP_QUALITY, source, "-o", str(hit)],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0 or not hit.exists():
+            return None
+        return hit.read_bytes()
+    finally:
+        Path(source).unlink(missing_ok=True)
+
+
 def register_asset(src: Path, folder: str = "images") -> str | None:
     """Stage a file for docs/<folder>/ and return the URL it will live at."""
     if src.suffix.lower() == ".heic":
@@ -307,10 +340,23 @@ def register_asset(src: Path, folder: str = "images") -> str | None:
     except OSError as error:
         print(f"  warn     unreadable asset {src.name} — {error}")
         return None
+
     digest = hashlib.sha1(data).hexdigest()[:8]
-    name = f"{slugify(src.stem)}-{digest}{src.suffix.lower()}"
-    ASSETS[f"{folder}/{name}"] = data
-    return f"/{folder}/{name}"
+    suffix = src.suffix.lower()
+    size = image_size(data)      # measure before converting; WebP keeps it
+
+    if folder == "images" and suffix in WEBP_FROM:
+        converted = to_webp(data, digest)
+        # Keep whichever is smaller. WebP loses on some small flat PNGs.
+        if converted and len(converted) < len(data):
+            data, suffix = converted, ".webp"
+
+    name = f"{slugify(src.stem)}-{digest}{suffix}"
+    web = f"{folder}/{name}"
+    ASSETS[web] = data
+    if size:
+        ASSET_SIZES[web] = size
+    return f"/{web}"
 
 
 def find_in_vault(target: str, note: Path) -> Path | None:
@@ -325,8 +371,7 @@ def find_in_vault(target: str, note: Path) -> Path | None:
     return vault_index().get(Path(target).name.lower())
 
 
-def img_tag(web: str, alt: str, data: bytes, width_hint: str = "") -> str:
-    size = image_size(data)
+def img_tag(web: str, alt: str, size: tuple[int, int] | None, width_hint: str = "") -> str:
     attrs = f'src="{web}" alt="{esc(alt)}" loading="lazy" decoding="async"'
     if size:
         attrs += f' width="{size[0]}" height="{size[1]}"'
@@ -351,7 +396,7 @@ def resolve_assets(markdown: str, note: Path) -> str:
         web = register_asset(path)
         if web is None:
             return f"*[missing: {target}]*"
-        return img_tag(web, path.stem, ASSETS[web.lstrip("/")], option)
+        return img_tag(web, path.stem, ASSET_SIZES.get(web.lstrip("/")), option)
 
     def from_markdown(match: re.Match) -> str:
         alt, source = match.group(1), match.group(2).strip()
@@ -370,7 +415,7 @@ def resolve_assets(markdown: str, note: Path) -> str:
         web = register_asset(path)
         if web is None:
             return match.group(0)
-        return img_tag(web, alt, ASSETS[web.lstrip("/")])
+        return img_tag(web, alt, ASSET_SIZES.get(web.lstrip("/")))
 
     markdown = RE_EMBED.sub(from_embed, markdown)
     markdown = RE_MD_IMAGE.sub(from_markdown, markdown)

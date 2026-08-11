@@ -123,9 +123,15 @@ A broken embed does not stop the build. It leaves a visible marker in the text a
 
 ### Weight
 
-Images dominate page weight. A post with 15 pasted screenshots runs about 3.5MB, against 5KB for the HTML. Obsidian pastes at full retina resolution, often 2000px wide or more, when the column only shows 650px.
+The build converts PNG and JPEG to WebP at quality 82, cached by content hash in `.cache/webp/`. That cut the site from 16.0MB to 5.2MB, and the heaviest post from 5.5MB to 1.1MB.
 
-Downscaling anything wider than 1300px would cut that roughly in half with no visible loss. Not implemented — ask if you want it.
+**Your vault keeps the originals.** Conversion happens on the way into `docs/` only, so Obsidian is unaffected and the whole thing is reversible. If WebP comes out larger than the original — which happens on small flat PNGs — the original is kept.
+
+GIFs are left alone. Converting them needs `gif2webp` and saved only 15% on the one animated GIF, which is not worth risking the animation.
+
+Requires `cwebp`. Without it the build still works and just serves the originals.
+
+Images imported from Substack were also downscaled to 1300px, which is 2× the column width. See `import_substack.py`.
 
 ## Design
 
