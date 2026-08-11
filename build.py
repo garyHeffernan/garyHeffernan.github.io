@@ -59,7 +59,10 @@ MASTHEAD = [
 EXCLUDE = {"CLAUDE.md", "GEMINI.md", "README.md", "Scratch.md", "Formatter.md"}
 
 PANDOC = shutil.which("pandoc")
-MD_FORMAT = "gfm+smart+footnotes"
+# tex_math_dollars is OFF deliberately. This is a finance blog, so "$13.70 a
+# share ... $18 at launch" appears constantly, and pandoc otherwise reads the
+# span between two dollar signs as LaTeX and eats the prices.
+MD_FORMAT = "gfm+smart+footnotes-tex_math_dollars"
 
 FAVICON = (
     "data:image/svg+xml,"
