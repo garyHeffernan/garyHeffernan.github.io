@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Build the site and push it live.
+#
+#   ./publish                 build, commit, push
+#   ./publish "some message"  same, with your own commit message
+#
+# Requires a working GitHub credential. If push fails with 401, run:
+#   gh auth refresh -h github.com -s repo && gh auth setup-git
+
+set -euo pipefail
+cd "$(dirname "$0")"
+
+python3 build.py
+
+if [[ -z "$(git status --porcelain)" ]]; then
+  echo
+  echo "  nothing changed — site is already up to date"
+  exit 0
+fi
+
+echo
+echo "  changes:"
+git status --porcelain | sed 's/^/    /'
+
+POSTS=$(python3 -c "
+import json, pathlib
+p = pathlib.Path('slugs.json')
+print(len(json.loads(p.read_text())) if p.exists() else 0)
+")
+
+MESSAGE="${1:-Publish: ${POSTS} posts, $(date '+%Y-%m-%d %H:%M')}"
+
+git add -A
+git commit -q -m "${MESSAGE}"
+
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if ! git remote get-url origin >/dev/null 2>&1; then
+  echo
+  echo "  no remote yet. Create the repo first:"
+  echo "    gh repo create garyHeffernan.github.io --public --source=. --remote=origin --push"
+  exit 1
+fi
+
+git push -q origin "${BRANCH}"
+
+echo
+echo "  pushed   ${BRANCH} → origin"
+echo "  live in ~60s at https://garyheffernan.github.io"

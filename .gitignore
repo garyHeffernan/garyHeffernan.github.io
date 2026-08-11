@@ -1,0 +1,7 @@
+.DS_Store
+__pycache__/
+*.pyc
+.obsidian/
+
+# Downloaded hotlinks and HEIC conversions. Rebuildable, so not committed.
+.cache/
