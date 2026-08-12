@@ -448,6 +448,82 @@ a { color: var(--text); }
 .sitefooter a { color: var(--muted); text-decoration: none; }
 .sitefooter a:hover { color: var(--text); }
 
+/* ── SUBSCRIBE BOX ─────────────────────────────────────── */
+
+/* Julian's .subs-box: one sentence, then the field. Same border and radius
+   as his, drawn from the tokens so it follows the theme both ways. */
+
+.subs-box {
+  margin: var(--s10) 0 var(--s4);
+  padding: var(--s3) var(--s3) var(--s3) var(--s4);
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+}
+.subs-box p { margin: 0; }
+
+.subs-form {
+  display: flex;
+  gap: var(--s2);
+  margin-top: var(--s3);
+}
+
+.subs-form input[type="email"] {
+  flex: 1;
+  min-width: 0;
+  padding: var(--s2);
+  font-family: var(--font-body);
+  font-size: var(--size-body);
+  color: var(--text-max);
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+}
+.subs-form input[type="email"]::placeholder { color: var(--muted); }
+.subs-form input[type="email"]:focus {
+  outline: none;
+  border-color: var(--text);
+}
+
+.subs-form button {
+  padding: var(--s2) var(--s4);
+  font-family: var(--font-body);
+  font-size: var(--size-body);
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all .2s ease-in-out;
+}
+.subs-form button:hover { background: var(--btn-hover); color: var(--text-max); }
+
+/* The feed address is meant to be selected and pasted, so it gets its own
+   line and wraps instead of overflowing the measure. */
+.feed-url {
+  display: block;
+  padding: var(--s2);
+  overflow-wrap: anywhere;
+}
+
+/* Labels the screen reader needs and the page does not show. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 575px) {
+  .subs-form { flex-direction: column; }
+}
+
 /* ── 404 ───────────────────────────────────────────────── */
 
 .notfound { margin: var(--s12) 0; text-align: center; }
@@ -464,7 +540,7 @@ a { color: var(--text); }
 /* ── PRINT ─────────────────────────────────────────────── */
 
 @media print {
-  .masthead, .pagenav, .sitefooter { display: none; }
+  .masthead, .pagenav, .sitefooter, .subs-box { display: none; }
   body { color: #000; background: #fff; }
   .prose a { background: none; text-decoration: underline; padding: 0; }
 }

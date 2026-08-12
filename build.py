@@ -48,6 +48,13 @@ SITE = {
     "lang": "en",
 }
 
+# The newsletter. Set BUTTONDOWN_USER to the Buttondown username once the
+# account is approved — that one value turns the email field on everywhere.
+# While it is None the subscribe box still renders, minus the field, so the
+# site never shows a form that goes nowhere.
+BUTTONDOWN_USER = None
+X_HANDLE = "garyheff"
+
 # The terminal box at the top of every page.
 MASTHEAD = [
     "&gt; Hello",
@@ -648,11 +655,44 @@ def footer() -> str:
     year = datetime.now().year
     return (
         f'<footer class="sitefooter">'
-        f'<a href="/feed.xml">RSS</a> · '
+        f'<a href="/subscribe/">Subscribe</a> · '
         f'<a href="/about/">About</a> · '
         f"© {year} {esc(SITE['author'])}"
         f"</footer>"
     )
+
+
+def subs_box() -> str:
+    """The box at the foot of every page: RSS, X, and email in one sentence.
+
+    The RSS link points at /subscribe/, not at feed.xml. A browser shows raw
+    XML for a feed, which reads as broken. Browsers used to fix that with an
+    XSLT stylesheet, but Chrome removes XSLT in November 2026, so a plain page
+    is the durable answer. Feed readers still find feed.xml from the <head>.
+    """
+    tail = ", or get new posts by email:" if BUTTONDOWN_USER else "."
+    form = f"\n{subs_form('box')}" if BUTTONDOWN_USER else ""
+    return f"""<div class="subs-box">
+<p>You can subscribe to this blog <a href="/subscribe/">via RSS</a>, \
+follow me <a href="https://x.com/{X_HANDLE}">on X</a>{tail}</p>{form}
+</div>"""
+
+
+def subs_form(scope: str) -> str:
+    """The Buttondown embed form, as plain HTML.
+
+    It needs no JavaScript. target="_blank" keeps the reader's place — without
+    it, submitting navigates the whole tab away to Buttondown. The field id is
+    scoped because the box and the Subscribe page can appear on the same page.
+    """
+    field = f"subs-email-{scope}"
+    return f"""<form class="subs-form" method="post" target="_blank"
+      action="https://buttondown.com/api/emails/embed-subscribe/{BUTTONDOWN_USER}">
+<label class="sr-only" for="{field}">Email address</label>
+<input id="{field}" type="email" name="email" placeholder="you@example.com" required>
+<input type="hidden" name="embed" value="1">
+<button type="submit">Subscribe</button>
+</form>"""
 
 
 def render_index(posts: list[Post]) -> str:
@@ -672,7 +712,7 @@ def render_index(posts: list[Post]) -> str:
         )
     if not blocks:
         blocks.append('<p class="empty">Nothing published yet.</p>')
-    body = "\n".join(blocks) + "\n" + footer()
+    body = "\n".join(blocks) + "\n" + subs_box() + "\n" + footer()
     return page(
         title=SITE["title"],
         description=SITE["description"],
@@ -695,6 +735,7 @@ def render_post_page(post: Post, older: Post | None, newer: Post | None) -> str:
 </div>
 </article>
 {pagenav(older, newer)}
+{subs_box()}
 {footer()}"""
     return page(
         title=post.title,
@@ -725,13 +766,67 @@ def render_about() -> str:
 {prose}
 </div>
 </article>
-<nav class="pagenav"><a href="/">Index</a><a href="/feed.xml">RSS</a></nav>
+<nav class="pagenav"><a href="/">Index</a><a href="/subscribe/">Subscribe</a></nav>
+{subs_box()}
 {footer()}"""
     return page(
         title="About",
         description=SITE["description"],
         body=body,
         canonical="/about/",
+    )
+
+
+def render_subscribe() -> str:
+    """The page the RSS button points at.
+
+    It exists because a browser cannot render a feed legibly, and will be even
+    less able to after Chrome drops XSLT. So the reader gets a page that says
+    what the feed is and hands them the URL to paste.
+    """
+    feed = f"{SITE['url']}/feed.xml"
+    body = f"""<article>
+<h1>Subscribe</h1>
+<div class="prose">
+<p>Three ways to follow along. All of them are free, and none of them need an
+account with anyone.</p>
+
+<h2 id="rss">By RSS</h2>
+<p>The feed carries every post in full, so a reader shows the whole piece
+without sending you back here. Paste this address into any feed reader:</p>
+<p><code class="feed-url">{feed}</code></p>
+<p>Most readers also find the feed on their own if you give them
+<code>{SITE['url']}</code>. If you want the raw file, it is
+<a href="/feed.xml">here</a>, and it will look like machine output, because it
+is meant for machines.</p>
+
+<h2 id="x">On X</h2>
+<p>New posts get announced at <a href="https://x.com/{X_HANDLE}">@{X_HANDLE}</a>.</p>
+
+<h2 id="email">By email</h2>
+{email_section()}
+</div>
+</article>
+<nav class="pagenav"><a href="/">Index</a><a href="/about/">About</a></nav>
+{footer()}"""
+    return page(
+        title="Subscribe",
+        description=f"Follow {SITE['title']} by RSS, on X, or by email.",
+        body=body,
+        canonical="/subscribe/",
+    )
+
+
+def email_section() -> str:
+    if not BUTTONDOWN_USER:
+        return (
+            "<p>Email delivery is not switched on yet. Until it is, RSS is the "
+            "way to get every post the moment it lands.</p>"
+        )
+    return (
+        "<p>Each new post goes out as a single email, in full. No digest, no "
+        "advertising, and no other mail. Every email carries an unsubscribe "
+        "link that works in one click.</p>" + subs_form("page")
     )
 
 
@@ -750,13 +845,29 @@ def render_404() -> str:
     )
 
 
+RE_ROOT_REL = re.compile(r'\b(src|href)="/(?!/)')
+RE_ANCHOR = re.compile(r'\b(href)="#')
+
+
+def absolutize(html_text: str, post_url: str) -> str:
+    """Give every URL its full origin, for the feed only.
+
+    A feed reader resolves a relative URL against its own domain, not against
+    this site. So "/images/foo.webp" fetches nothing and "#fn1" jumps nowhere.
+    The pages keep their short relative paths; only the feed gets rewritten.
+    """
+    base = SITE["url"]
+    html_text = RE_ROOT_REL.sub(lambda m: f'{m.group(1)}="{base}/', html_text)
+    return RE_ANCHOR.sub(lambda m: f'{m.group(1)}="{base}{post_url}#', html_text)
+
+
 def render_feed(posts: list[Post]) -> str:
     # Stamp the feed with the newest post, not the clock. A build that changes
     # nothing then produces no diff, so ./publish stays quiet.
     now = posts[0].rfc822 if posts else "Thu, 01 Jan 1970 00:00:00 +0000"
     items = []
     for post in posts:
-        content = post.lede_html + post.body_html
+        content = absolutize(post.lede_html + post.body_html, post.url)
         items.append(
             f"""  <item>
     <title>{esc(post.title)}</title>
@@ -905,6 +1016,7 @@ def main() -> None:
         older = posts[i + 1] if i + 1 < len(posts) else None
         write(OUT / post.slug / "index.html", render_post_page(post, older, newer))
     write(OUT / "about" / "index.html", render_about())
+    write(OUT / "subscribe" / "index.html", render_subscribe())
     write(OUT / "404.html", render_404())
     write(OUT / "feed.xml", render_feed(posts))
     write(OUT / ".nojekyll", "")
@@ -927,7 +1039,7 @@ def main() -> None:
 
     files = sum(1 for _ in OUT.rglob("*") if _.is_file())
     size = sum(f.stat().st_size for f in OUT.rglob("*") if f.is_file())
-    print(f"  {len(posts)} posts → {len(posts) + 3} pages")
+    print(f"  {len(posts)} posts → {len(posts) + 4} pages")
     print(f"  wrote    docs/ ({files} files, {size / 1024:.0f} KB)")
 
 

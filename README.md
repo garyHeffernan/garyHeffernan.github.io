@@ -196,6 +196,53 @@ If `./publish` fails with a 401, the credential has expired:
 gh auth refresh -h github.com -s repo && gh auth setup-git
 ```
 
+## Subscribing
+
+Readers get three routes, gathered in the box at the foot of every page and on
+`/subscribe/`: the RSS feed, X, and email.
+
+The RSS link points at `/subscribe/`, not at `feed.xml`. A browser shows a feed
+as raw XML, which reads as broken. Browsers used to fix that with an XSLT
+stylesheet, but Chrome removes XSLT on 17 November 2026, so a plain page is the
+durable answer. Feed readers still find `feed.xml` from the `<head>` tag.
+
+### Switching email on
+
+Set one value in `build.py`:
+
+```python
+BUTTONDOWN_USER = "your-buttondown-username"
+```
+
+The email field then appears in the box and on `/subscribe/`. While the value is
+`None` the box renders without the field, so the site never shows a dead form.
+
+The form is plain HTML posting straight to Buttondown. It needs no JavaScript,
+and the page loads nothing from Buttondown until someone submits it.
+
+### Emailing each new post
+
+`send_email.py` does by hand what Buttondown's RSS automation add-on charges
+$9/month for. It compares `docs/feed.xml` against `sent.json` and creates one
+Buttondown email per unsent post. The API is free on every plan.
+
+```
+python3 send_email.py --dry-run   # report what would send
+python3 send_email.py --seed      # mark everything current as already sent
+python3 send_email.py             # create the emails
+```
+
+`sent.json` is the ledger, and it is committed. State stays visible and
+diffable, and nothing is inferred from timestamps, so a rebuild cannot re-send
+an old post.
+
+Emails are created as **drafts** by default. Gary reads the draft in Buttondown
+and presses send. Set `SEND_IMMEDIATELY = True` in `send_email.py` to skip that.
+
+`.github/workflows/email-new-posts.yml` runs the script whenever a push changes
+`docs/feed.xml`. It needs one repository secret, `BUTTONDOWN_API_KEY`, added
+under Settings → Secrets and variables → Actions.
+
 ## Requirements
 
 - Python 3, standard library only
@@ -204,6 +251,8 @@ gh auth refresh -h github.com -s repo && gh auth setup-git
 ## Glossary
 
 - **Frontmatter** — a YAML block at the top of a markdown file, holding title and date. This site needs none.
+- **Ledger** — here, `sent.json`, the record of which posts have been emailed.
 - **Lede** — the opening summary paragraph of an article.
 - **Measure** — the width of a text column, counted in characters.
 - **Slug** — the URL-safe form of a title, used as the address of a page.
+- **XSLT** — a language for turning XML into HTML, which browsers drop in 2026.
