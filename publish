@@ -22,10 +22,13 @@ echo
 echo "  changes:"
 git status --porcelain | sed 's/^/    /'
 
+# Count what is actually published, by reading the feed just built. slugs.json
+# is the wrong source: it remembers every slug it has ever issued, including
+# ones left behind by renames, so it drifts above the real number over time.
 POSTS=$(python3 -c "
-import json, pathlib
-p = pathlib.Path('slugs.json')
-print(len(json.loads(p.read_text())) if p.exists() else 0)
+import pathlib, xml.etree.ElementTree as ET
+p = pathlib.Path('docs/feed.xml')
+print(len(ET.parse(p).getroot().findall('./channel/item')) if p.exists() else 0)
 ")
 
 MESSAGE="${1:-Publish: ${POSTS} posts, $(date '+%Y-%m-%d %H:%M')}"
