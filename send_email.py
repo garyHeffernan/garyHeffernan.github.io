@@ -151,7 +151,11 @@ def main() -> None:
 
     key = os.environ.get("BUTTONDOWN_API_KEY", "").strip()
     if not key:
-        die("BUTTONDOWN_API_KEY is not set")
+        # Not an error while the newsletter is still being set up. Failing here
+        # would put a red cross on every publish for no reason. The posts stay
+        # out of the ledger, so they still go the moment the key arrives.
+        print("  skipped  BUTTONDOWN_API_KEY is not set — nothing emailed")
+        return
 
     for post in pending:
         send(post, key)
