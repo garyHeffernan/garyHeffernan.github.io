@@ -48,11 +48,10 @@ SITE = {
     "lang": "en",
 }
 
-# The newsletter. Set BUTTONDOWN_USER to the Buttondown username once the
-# account is approved — that one value turns the email field on everywhere.
-# While it is None the subscribe box still renders, minus the field, so the
-# site never shows a form that goes nowhere.
-BUTTONDOWN_USER = None
+# The newsletter. BUTTONDOWN_USER turns the email field on everywhere. Set it
+# back to None to take the field down without touching anything else — the
+# subscribe box then renders without it, rather than showing a dead form.
+BUTTONDOWN_USER = "heffernan"
 X_HANDLE = "garyheff"
 
 # The terminal box at the top of every page.
