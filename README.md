@@ -193,8 +193,11 @@ GitHub Pages serves the repo `garyHeffernan.github.io` from `main`, folder `/doc
 If `./publish` fails with a 401, the credential has expired:
 
 ```
-gh auth refresh -h github.com -s repo && gh auth setup-git
+gh auth refresh -h github.com -s repo -s workflow && gh auth setup-git
 ```
+
+The `workflow` scope matters. Without it GitHub rejects any push that touches
+`.github/workflows/`, and the error names the scope rather than the fix.
 
 ## Subscribing
 
@@ -242,6 +245,35 @@ and presses send. Set `SEND_IMMEDIATELY = True` in `send_email.py` to skip that.
 `.github/workflows/email-new-posts.yml` runs the script whenever a push changes
 `docs/feed.xml`. It needs one repository secret, `BUTTONDOWN_API_KEY`, added
 under Settings → Secrets and variables → Actions.
+
+The workflow also runs on demand:
+
+```
+gh workflow run "Email new posts"
+gh run list --workflow="Email new posts" --limit 3
+```
+
+### Editing a post after it has been emailed
+
+The draft is created on the **first** publish of a post. Editing the note after
+that does not update the draft, because the post already sits in `sent.json` and
+the run correctly reports nothing pending. The draft then holds the old text.
+
+Finish the edits before the first publish. If that is already past, delete the
+draft in Buttondown, remove the post's URL from `sent.json`, and re-run the
+workflow. A fresh draft appears with the current text.
+
+### When an email does not arrive
+
+Check these three, in order. Nearly always it is the first.
+
+1. **Search `in:anywhere from:buttondown`.** Plain search skips Spam and Trash,
+   and a new sender lands in Promotions or Spam more often than not.
+2. **Buttondown → Emails → the sent email.** It shows queued, sending or
+   delivered, with counts. New accounts are sometimes throttled on a first send.
+3. **Buttondown → Subscribers → the address.** "Unactivated" means the double
+   opt-in link was never clicked, and Buttondown will not send to it. Signing up
+   and confirming are separate events.
 
 ## Requirements
 
