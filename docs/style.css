@@ -332,13 +332,13 @@ a { color: var(--text); }
   width: calc(100% + 2 * var(--gutter-sm));
   max-width: none;
   height: auto;
-  margin: var(--s4) calc(-1 * var(--gutter-sm)) var(--s3);
+  margin: var(--s6) calc(-1 * var(--gutter-sm)) var(--s6);
   border-radius: 0;
 }
 @media (min-width: 576px) {
   .prose img {
     width: calc(100% + 2 * var(--gutter));
-    margin: var(--s5) calc(-1 * var(--gutter)) var(--s3);
+    margin: var(--s7) calc(-1 * var(--gutter)) var(--s7);
     border-radius: var(--radius);
   }
 }
@@ -348,7 +348,7 @@ a { color: var(--text); }
   line-height: 1.5;
   text-align: center;
   color: var(--muted);
-  margin: calc(-1 * var(--s1)) 0 var(--s8);
+  margin: calc(-1 * var(--s3)) 0 var(--s7);
 }
 
 /* ── META ──────────────────────────────────────────────── */
