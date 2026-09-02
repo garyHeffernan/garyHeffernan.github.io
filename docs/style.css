@@ -327,7 +327,8 @@ a { color: var(--text); }
   color: var(--text-strong);
 }
 
-.prose img {
+.prose img,
+.lede img {
   display: block;
   width: calc(100% + 2 * var(--gutter-sm));
   max-width: none;
@@ -336,7 +337,8 @@ a { color: var(--text); }
   border-radius: 0;
 }
 @media (min-width: 576px) {
-  .prose img {
+  .prose img,
+  .lede img {
     width: calc(100% + 2 * var(--gutter));
     margin: var(--s7) calc(-1 * var(--gutter)) var(--s7);
     border-radius: var(--radius);
@@ -344,13 +346,16 @@ a { color: var(--text); }
 }
 /* A sized image — Obsidian's ![[file|400]] — keeps its own width and centres,
    instead of being stretched up into the bleed. */
-.prose img[style] {
+.prose img[style],
+.lede img[style] {
   margin-left: auto;
   margin-right: auto;
 }
 
-.prose figure { margin: 0; }
-.prose figcaption {
+.prose figure,
+.lede figure { margin: 0; }
+.prose figcaption,
+.lede figcaption {
   font-size: var(--size-caption);
   line-height: 1.5;
   text-align: center;
