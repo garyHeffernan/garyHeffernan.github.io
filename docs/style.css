@@ -342,6 +342,13 @@ a { color: var(--text); }
     border-radius: var(--radius);
   }
 }
+/* A sized image — Obsidian's ![[file|400]] — keeps its own width and centres,
+   instead of being stretched up into the bleed. */
+.prose img[style] {
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .prose figure { margin: 0; }
 .prose figcaption {
   font-size: var(--size-caption);
